@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Teer Booking</title>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 600px;
+      margin: auto;
+      padding: 1em;
+    }
+    h2 { margin-top: 1.5em; }
+    input[type="number"] {
+      width: 60px;
+    }
+    input[type="text"] {
+      width: 100%;
+    }
+    .number-entry {
+      margin-bottom: 5px;
+    }
+    button {
+      padding: 10px 20px;
+      margin-top: 10px;
+      font-size: 1em;
+    }
+    .hidden {
+      display: none;
+    }
+    .disabled {
+      pointer-events: none;
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Teer Booking</h1>
+  <div id="result">
+    <strong>Loading result...</strong>
+  </div>
+
+  <h2>Choose Your Numbers</h2>
+
+  <div id="entries"></div>
+  <button onclick="addEntry()">+ Add Number</button>
+
+  <h2>Total Amount: ₹<span id="total">0</span></h2>
+
+  <button onclick="generateUpiLink()" id="payBtn">Pay Now</button>
+
+  <div id="upiSection" class="hidden">
+    <h2>Confirm Your Payment</h2>
+    <label>Your UPI ID:</label>
+    <input type="text" id="userUpi" placeholder="example@upi"><br><br>
+    <label>Transaction ID:</label>
+    <input type="text" id="txnId" placeholder="Enter your txn ID"><br><br>
+    <button onclick="submitOrder()">Submit Order</button>
+  </div>
+
+  <div id="finalMsg" class="hidden">
+    <h2>Thank you!</h2>
+    <p>Your order has been submitted.</p>
+  </div>
+
+  <script>
+    // Fetch and display live result
+    fetch("https://cdn.shillongteerground.com/teer/api/results/latest/")
+      .then(res => res.json())
+      .then(data => {
+        const date = data.date || "Today";
+        const r1 = data.round1 || "--";
+        const r2 = data.round2 || "--";
+        document.getElementById("result").innerHTML = `
+          <strong>Date:</strong> ${date}<br>
+          <strong>First Round:</strong> ${r1} (4PM)<br>
+          <strong>Second Round:</strong> ${r2} (5PM)
+        `;
+      });
+
+    let entries = [];
+
+    function addEntry() {
+      const id = entries.length;
+      entries.push({ round: "R1", number: 0, qty: 1 });
+
+      const div = document.createElement("div");
+      div.className = "number-entry";
+      div.id = `entry-${id}`;
+      div.innerHTML = `
+        <select onchange="updateEntry(${id}, 'round', this.value)">
+          <option value="R1">R1</option>
+          <option value="R2">R2</option>
+        </select>
+        <input type="number" min="0" max="99" value="0" onchange="updateEntry(${id}, 'number', this.value)">
+        x
+        <input type="number" min="1" value="1" onchange="updateEntry(${id}, 'qty', this.value)">
+        <button onclick="removeEntry(${id})">❌</button>
+      `;
+      document.getElementById("entries").appendChild(div);
+      updateTotal();
+    }
+
+    function updateEntry(id, field, value) {
+      entries[id][field] = field === "qty" || field === "number" ? parseInt(value) : value;
+      updateTotal();
+    }
+
+    function removeEntry(id) {
+      entries[id] = null;
+      const el = document.getElementById(`entry-${id}`);
+      if (el) el.remove();
+      updateTotal();
+    }
+
+    function updateTotal() {
+      const total = entries.reduce((sum, item) => item ? sum + item.qty : sum, 0);
+      document.getElementById("total").textContent = total;
+    }
+
+    function generateUpiLink() {
+      const now = new Date();
+      const hour = now.getHours();
+      if (hour >= 15 && hour < 18) {
+        alert("Booking is closed from 3PM to 6PM. Please come back later.");
+        return;
+      }
+
+      const orderItems = entries.filter(Boolean);
+      if (orderItems.length === 0) {
+        alert("Please select at least one number.");
+        return;
+      }
+
+      const amount = orderItems.reduce((sum, i) => sum + i.qty, 0);
+      const date = now.toISOString().split("T")[0];
+      const orderText = orderItems.map(i => `${i.round} ${i.number}x${i.qty}`).join(", ");
+      const msg = `Date:${date}, ${orderText}`;
+
+      const upiLink = `upi://pay?pa=jintukalita7-3@oksbi&pn=TeerBooking&mc=0000&mode=02&purpose=00&am=${amount}&cu=INR&tn=${encodeURIComponent(msg)}`;
+      window.open(upiLink, "_blank");
+      document.getElementById("upiSection").classList.remove("hidden");
+    }
+
+    function submitOrder() {
+      const upi = document.getElementById("userUpi").value.trim();
+      const txn = document.getElementById("txnId").value.trim();
+      if (!upi || !txn) {
+        alert("Please enter both UPI ID and Transaction ID.");
+        return;
+      }
+
+      // Normally, this would be saved in a backend. For now, just show thank you.
+      document.getElementById("upiSection").classList.add("hidden");
+      document.getElementById("finalMsg").classList.remove("hidden");
+    }
+  </script>
+
+</body>
+</html>
